@@ -22,6 +22,11 @@ import android.widget.TextView;
 import com.example.mike.msafiri.Custom.Locator;
 import com.example.mike.msafiri.Custom.TrackGPS;
 import com.example.mike.msafiri.Interfaces.IInterfaceUpdate;
+import com.pubnub.api.Callback;
+import com.pubnub.api.Pubnub;
+import com.pubnub.api.PubnubError;
+
+import io.fabric.sdk.android.Fabric;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener,IInterfaceUpdate {
@@ -29,13 +34,20 @@ public class MainActivity extends AppCompatActivity
     String endPoint = "http://192.168.88.244:3000/ping";
     private TrackGPS gps;
     TextView tvLocation;
+    Pubnub pubnub;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Fabric.with(this);
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         test = false;
+
+        pubnub = new Pubnub(getString(R.string.com_pubnub_publishKey), getString(R.string.com_pubnub_subscribeKey));
+
+
+
         tvLocation = (TextView) findViewById(R.id.tvlocation);
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -49,7 +61,7 @@ public class MainActivity extends AppCompatActivity
                 startTracking();
                 if(gps.canGetLocation()){
                     tvLocation.setText("Latitude: "+gps.getLatitude()+"\n"+"Longitude: "+gps.getLongitude());
-                    transferData();
+                    transferData(gps.getLatitude(),gps.getLongitude());
                     Snackbar.make(view, "Longitude:"+Double.toString(gps.getLongitude())+"\nLatitude:"+Double.toString(gps.getLatitude()), Snackbar.LENGTH_LONG)
                             .setAction("Action", null).show();
                 }
@@ -74,8 +86,20 @@ public class MainActivity extends AppCompatActivity
     public void startTracking(){
         gps = new TrackGPS(MainActivity.this,this);
     }
-    public void transferData(){Locator locator = new Locator(MainActivity.this,endPoint);
-        locator.showLast("http://192.168.88.244:3000/matatu/position");}
+    public void transferData(double lat, double lon){
+        Locator locator = new Locator(MainActivity.this,endPoint);
+        locator.showLast("http://192.168.88.244:3000/matatu/position");
+        pubnub.publish("KAA ABC1", String.valueOf(lat)+" "+String.valueOf(lon), new Callback(){
+            @Override
+            public void successCallback(String channel, Object message) {
+                System.out.println(message);
+            }
+            @Override
+            public void errorCallback(String channel, PubnubError error) {
+                System.out.println(error);
+            }
+        });
+    }
     @Override
     public void onBackPressed() {
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
@@ -141,7 +165,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void updateViews(Location location) {
-        transferData();
+        transferData(location.getLatitude(),location.getLongitude());
         tvLocation.setText("Latitude: "+location.getLatitude()+"\n"+"Longitude: "+location.getLongitude());
     }
 }

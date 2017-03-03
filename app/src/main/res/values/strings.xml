@@ -7,4 +7,9 @@
     <string name="action_settings">Settings</string>
     <string name="favourite">favourite</string>
     <string name="details">Details</string>
+
+    <string name="com.pubnub.publishKey" translatable="false">pub-c-b88f1f59-4941-4625-af22-cc0e38ff74fd</string>
+    <string name="com.pubnub.subscribeKey" translatable="false">sub-c-1710d7be-ea9c-11e6-8919-0619f8945a4f</string>
+    <string name="com.pubnub.secretKey" translatable="false">sec-c-MjNjNWMzOWQtMzcwZC00YWMxLTlkMWMtM2ZkYjlkZjk4N2Ex</string>
+
 </resources>
