@@ -1,13 +1,14 @@
 package com.example.mike.msafiri;
 
-import android.Manifest;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
@@ -19,22 +20,66 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 
-import com.example.mike.msafiri.Custom.Locator;
+import com.example.mike.msafiri.Custom.GeofenceClass;
+import com.example.mike.msafiri.Custom.NewTracker;
+import com.example.mike.msafiri.Custom.PermissionsRequest;
 import com.example.mike.msafiri.Custom.TrackGPS;
 import com.example.mike.msafiri.Interfaces.IInterfaceUpdate;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.pubnub.api.Callback;
 import com.pubnub.api.Pubnub;
 import com.pubnub.api.PubnubError;
 
 import io.fabric.sdk.android.Fabric;
 
+
+
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener,IInterfaceUpdate {
-    Boolean test;
-    String endPoint = "http://192.168.88.244:3000/ping";
+        implements NavigationView.OnNavigationItemSelectedListener,IInterfaceUpdate,
+        GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener, LocationListener,
+        OnMapReadyCallback, GoogleMap.OnMarkerClickListener, ResultCallback<Status> {
+
+    private Boolean test;
+    private Pubnub pubnub;
+
     private TrackGPS gps;
-    TextView tvLocation;
-    Pubnub pubnub;
+    private PermissionsRequest askPermission;
+    private NewTracker newTracker;
+    private GeofenceClass geofenceClass;
+
+    private GoogleMap map;
+
+    private TextView tvLocation;
+    private TextView textLat, textLong;
+
+    private static final String NOTIFICATION_MSG = "NOTIFICATION MSG";
+    private final int REQ_PERMISSION = 999;
+    private static final String TAG = MainActivity.class.getSimpleName();
+
+    private LocationRequest locationRequest;
+    private static final long GEO_DURATION = 60 * 60 * 1000;
+    private static final String GEOFENCE_REQ_ID = "My Geofence";
+    private static final float GEOFENCE_RADIUS = 50.0f; // in meters
+
+    // Create a Intent send by the notification
+    public static Intent makeNotificationIntent(Context context, String msg) {
+        Intent intent = new Intent( context, MainActivity.class );
+        intent.putExtra( NOTIFICATION_MSG, msg );
+        return intent;
+    }
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -42,24 +87,28 @@ public class MainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        test = false;
 
+        //initializing Permission Class
+        askPermission = new PermissionsRequest(this,MainActivity.this,TAG);
+
+        //initialize pubnub
         pubnub = new Pubnub(getString(R.string.com_pubnub_publishKey), getString(R.string.com_pubnub_subscribeKey));
 
+        // initialize GoogleMaps
+        initGMaps();
 
+        newTracker  = new NewTracker(this,TAG,this);
+        newTracker.createGoogleApi(this,this,this);
 
+        test = false;
         tvLocation = (TextView) findViewById(R.id.tvlocation);
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                /*Locator locator = new Locator(MainActivity.this,endPoint);
-                //String response = locator.runCode( );
-                String response = locator.showLast("http://192.168.88.244:3000/matatu/position");
-                Snackbar.make(view, "Response"+response, Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();*/
                 startTracking();
-                if(gps.canGetLocation()){
+                createGeoFence();
+                /*if(gps.canGetLocation()){
                     tvLocation.setText("Latitude: "+gps.getLatitude()+"\n"+"Longitude: "+gps.getLongitude());
                     transferData(gps.getLatitude(),gps.getLongitude());
                     Snackbar.make(view, "Longitude:"+Double.toString(gps.getLongitude())+"\nLatitude:"+Double.toString(gps.getLatitude()), Snackbar.LENGTH_LONG)
@@ -68,9 +117,7 @@ public class MainActivity extends AppCompatActivity
                 else
                 {
                     gps.showSettingsAlert();
-                }
-
-
+                }*/
             }
         });
 
@@ -83,12 +130,15 @@ public class MainActivity extends AppCompatActivity
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
     }
-    public void startTracking(){
-        gps = new TrackGPS(MainActivity.this,this);
+    private void startTracking(){
+        //gps = new TrackGPS(MainActivity.this,this);
+        newTracker.startLocationUpdates(askPermission);
     }
-    public void transferData(double lat, double lon){
-        Locator locator = new Locator(MainActivity.this,endPoint);
-        locator.showLast("http://192.168.88.244:3000/matatu/position");
+    public void createGeoFence(){
+        geofenceClass = new GeofenceClass(this,newTracker.getClient(),TAG,askPermission,this,newTracker.getLastKnownLocation(askPermission),map);
+        geofenceClass.startGeofence(GEOFENCE_RADIUS,"Msafiri Goefence",GEO_DURATION);
+    }
+    private void transferData(double lat, double lon){
         pubnub.publish("KAA ABC1", String.valueOf(lat)+" "+String.valueOf(lon), new Callback(){
             @Override
             public void successCallback(String channel, Object message) {
@@ -167,5 +217,94 @@ public class MainActivity extends AppCompatActivity
     public void updateViews(Location location) {
         transferData(location.getLatitude(),location.getLongitude());
         tvLocation.setText("Latitude: "+location.getLatitude()+"\n"+"Longitude: "+location.getLongitude());
+    }
+
+    @Override
+    public void updateViewsLatlng(LatLng latLng) {
+        transferData(latLng.latitude,latLng.longitude);
+        tvLocation.setText("Latitude: "+latLng.latitude+"\n"+"Longitude: "+latLng.longitude);
+    }
+
+
+    // Verify user's response of the permission requested
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        Log.d(TAG, "onRequestPermissionsResult()");
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch ( requestCode ) {
+            case REQ_PERMISSION: {
+                if ( grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED ){
+                    // Permission granted
+                    newTracker.getLastKnownLocation(askPermission);
+                } else {
+                    // Permission denied
+                    askPermission.permissionsDenied();
+                }
+                break;
+            }
+        }
+    }
+
+
+    // Initialize GoogleMaps
+    private void initGMaps(){
+        MapFragment mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+    }
+
+    // Callback called when Map is ready
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        Log.d(TAG, "onMapReady()");
+        map = googleMap;
+        map.setOnMarkerClickListener(this);
+    }
+
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        Log.d(TAG, "onMarkerClickListener: " + marker.getPosition() );
+        return false;
+    }
+
+    @Override
+    public void onResult(@NonNull Status status) {
+        Log.i(TAG, "onResult: " + status);
+        if ( status.isSuccess() ) {
+            geofenceClass.startGeofence(GEOFENCE_RADIUS,"Msafiri Goefence",GEO_DURATION);
+        } else {
+            // inform about fail
+        }
+    }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        newTracker.startLocationUpdates(askPermission);
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        newTracker.connectClient();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        newTracker.disconnectClient();
     }
 }
