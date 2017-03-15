@@ -8,16 +8,16 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
-import android.util.Log;
-import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.TextView;
 
 import com.example.mike.msafiri.Custom.GeofenceClass;
@@ -43,39 +43,33 @@ import com.pubnub.api.PubnubError;
 import io.fabric.sdk.android.Fabric;
 
 
-
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener,IInterfaceUpdate,
+        implements NavigationView.OnNavigationItemSelectedListener, IInterfaceUpdate,
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener, LocationListener,
         OnMapReadyCallback, GoogleMap.OnMarkerClickListener, ResultCallback<Status> {
 
+    private static final String NOTIFICATION_MSG = "NOTIFICATION MSG";
+    private static final String TAG = MainActivity.class.getSimpleName();
+    private static final long GEO_DURATION = 60 * 60 * 1000;
+    private static final String GEOFENCE_REQ_ID = "My Geofence";
+    private static final float GEOFENCE_RADIUS = 50.0f; // in meters
+    private final int REQ_PERMISSION = 999;
     private Boolean test;
     private Pubnub pubnub;
-
     private TrackGPS gps;
     private PermissionsRequest askPermission;
     private NewTracker newTracker;
     private GeofenceClass geofenceClass;
-
     private GoogleMap map;
-
     private TextView tvLocation;
     private TextView textLat, textLong;
-
-    private static final String NOTIFICATION_MSG = "NOTIFICATION MSG";
-    private final int REQ_PERMISSION = 999;
-    private static final String TAG = MainActivity.class.getSimpleName();
-
     private LocationRequest locationRequest;
-    private static final long GEO_DURATION = 60 * 60 * 1000;
-    private static final String GEOFENCE_REQ_ID = "My Geofence";
-    private static final float GEOFENCE_RADIUS = 50.0f; // in meters
 
     // Create a Intent send by the notification
     public static Intent makeNotificationIntent(Context context, String msg) {
-        Intent intent = new Intent( context, MainActivity.class );
-        intent.putExtra( NOTIFICATION_MSG, msg );
+        Intent intent = new Intent(context, MainActivity.class);
+        intent.putExtra(NOTIFICATION_MSG, msg);
         return intent;
     }
 
@@ -89,7 +83,7 @@ public class MainActivity extends AppCompatActivity
         setSupportActionBar(toolbar);
 
         //initializing Permission Class
-        askPermission = new PermissionsRequest(this,MainActivity.this,TAG);
+        askPermission = new PermissionsRequest(this, MainActivity.this, TAG);
 
         //initialize pubnub
         pubnub = new Pubnub(getString(R.string.com_pubnub_publishKey), getString(R.string.com_pubnub_subscribeKey));
@@ -97,8 +91,8 @@ public class MainActivity extends AppCompatActivity
         // initialize GoogleMaps
         initGMaps();
 
-        newTracker  = new NewTracker(this,TAG,this);
-        newTracker.createGoogleApi(this,this,this);
+        newTracker = new NewTracker(this, TAG, this);
+        newTracker.createGoogleApi(this, this, this);
 
         test = false;
         tvLocation = (TextView) findViewById(R.id.tvlocation);
@@ -130,26 +124,31 @@ public class MainActivity extends AppCompatActivity
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
     }
-    private void startTracking(){
+
+    private void startTracking() {
         //gps = new TrackGPS(MainActivity.this,this);
         newTracker.startLocationUpdates(askPermission);
     }
-    public void createGeoFence(){
-        geofenceClass = new GeofenceClass(this,newTracker.getClient(),TAG,askPermission,this,newTracker.getLastKnownLocation(askPermission),map);
-        geofenceClass.startGeofence(GEOFENCE_RADIUS,"Msafiri Goefence",GEO_DURATION);
+
+    public void createGeoFence() {
+        geofenceClass = new GeofenceClass(this, newTracker.getClient(), TAG, askPermission, this, newTracker.getLastKnownLocation(askPermission), map);
+        geofenceClass.startGeofence(GEOFENCE_RADIUS, "Msafiri Goefence", GEO_DURATION);
     }
-    private void transferData(double lat, double lon){
-        pubnub.publish("KAA ABC1", String.valueOf(lat)+" "+String.valueOf(lon), new Callback(){
+
+    private void transferData(double lat, double lon) {
+        pubnub.publish("KAA ABC1", String.valueOf(lat) + " " + String.valueOf(lon), new Callback() {
             @Override
             public void successCallback(String channel, Object message) {
                 System.out.println(message);
             }
+
             @Override
             public void errorCallback(String channel, PubnubError error) {
                 System.out.println(error);
             }
         });
     }
+
     @Override
     public void onBackPressed() {
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
@@ -215,25 +214,24 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void updateViews(Location location) {
-        transferData(location.getLatitude(),location.getLongitude());
-        tvLocation.setText("Latitude: "+location.getLatitude()+"\n"+"Longitude: "+location.getLongitude());
+        transferData(location.getLatitude(), location.getLongitude());
+        tvLocation.setText("Latitude: " + location.getLatitude() + "\n" + "Longitude: " + location.getLongitude());
     }
 
     @Override
     public void updateViewsLatlng(LatLng latLng) {
-        transferData(latLng.latitude,latLng.longitude);
-        tvLocation.setText("Latitude: "+latLng.latitude+"\n"+"Longitude: "+latLng.longitude);
+        transferData(latLng.latitude, latLng.longitude);
+        tvLocation.setText("Latitude: " + latLng.latitude + "\n" + "Longitude: " + latLng.longitude);
     }
-
 
     // Verify user's response of the permission requested
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         Log.d(TAG, "onRequestPermissionsResult()");
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        switch ( requestCode ) {
+        switch (requestCode) {
             case REQ_PERMISSION: {
-                if ( grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED ){
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // Permission granted
                     newTracker.getLastKnownLocation(askPermission);
                 } else {
@@ -247,7 +245,7 @@ public class MainActivity extends AppCompatActivity
 
 
     // Initialize GoogleMaps
-    private void initGMaps(){
+    private void initGMaps() {
         MapFragment mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
     }
@@ -262,15 +260,15 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public boolean onMarkerClick(Marker marker) {
-        Log.d(TAG, "onMarkerClickListener: " + marker.getPosition() );
+        Log.d(TAG, "onMarkerClickListener: " + marker.getPosition());
         return false;
     }
 
     @Override
     public void onResult(@NonNull Status status) {
         Log.i(TAG, "onResult: " + status);
-        if ( status.isSuccess() ) {
-            geofenceClass.startGeofence(GEOFENCE_RADIUS,"Msafiri Goefence",GEO_DURATION);
+        if (status.isSuccess()) {
+            geofenceClass.startGeofence(GEOFENCE_RADIUS, "Msafiri Goefence", GEO_DURATION);
         } else {
             // inform about fail
         }
@@ -293,13 +291,14 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onLocationChanged(Location location) {
-
+        tvLocation.setText("Latitude: "+location.getLatitude()+"\n"+"Longitude: "+location.getLongitude());
     }
 
     @Override
     protected void onStart() {
         super.onStart();
         newTracker.connectClient();
+        geofenceClass.recoverGeofenceMarker("Msafiri Goefence", GEOFENCE_RADIUS);
     }
 
     @Override

@@ -75,8 +75,7 @@ public class NewTracker implements LocationListener {
         locationRequest = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(UPDATE_INTERVAL)
-                .setFastestInterval(FASTEST_INTERVAL)
-                .setSmallestDisplacement(1);
+                .setFastestInterval(FASTEST_INTERVAL);
         if ( askPermision.checkPermission() ){
             checkLocationSettings();
             LocationServices.FusedLocationApi.requestLocationUpdates(client, locationRequest, NewTracker.this);
@@ -139,7 +138,7 @@ public class NewTracker implements LocationListener {
         if ( permissionsRequest.checkPermission() ) {
             Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(client);
             if ( lastLocation != null ) {
-                Log.i(TAG, "LasKnown location. " +
+                Log.i(TAG, "LastKnown location. " +
                         "Long: " + lastLocation.getLongitude() +
                         " | Lat: " + lastLocation.getLatitude());
                 latLng = new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude());

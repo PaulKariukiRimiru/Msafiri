@@ -12,20 +12,18 @@ import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.example.mike.msafiri.Services.GeofenceTrasitionService;
-import com.google.android.gms.common.ConnectionResult;
+
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingRequest;
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
+
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
@@ -41,12 +39,15 @@ public class GeofenceClass{
     private final String TAG;
     private final PermissionsRequest permissionsRequest;
     private final Context context;
-    private GoogleApiClient googleApiClient;
-
-    private PendingIntent geoFencePendingIntent;
+    private final String KEY_GEOFENCE_LAT = "GEOFENCE LATITUDE";
+    private final String KEY_GEOFENCE_LON = "GEOFENCE LONGITUDE";
     ResultCallback<Status> callback;
     Marker marker;
     GoogleMap map;
+    private GoogleApiClient googleApiClient;
+    private PendingIntent geoFencePendingIntent;
+    // Draw Geofence circle on GoogleMap
+    private Circle geoFenceLimits;
 
     public GeofenceClass(Context context, GoogleApiClient googleApiClient, String TAG, PermissionsRequest permissionsRequest , ResultCallback<Status> callback,LatLng latLng, GoogleMap map){
         this.googleApiClient = googleApiClient;
@@ -59,6 +60,7 @@ public class GeofenceClass{
 
         markerLocation(latLng);
     }
+
     // Start Geofence creation process
     public void startGeofence(float radius, String geoId, long duration) {
         Log.i(TAG, "startGeofence()");
@@ -95,9 +97,9 @@ public class GeofenceClass{
         return new Geofence.Builder()
                 .setRequestId(geoId)
                 .setCircularRegion( latLng.latitude, latLng.longitude, radius)
-                .setExpirationDuration( duration )
-                .setTransitionTypes( Geofence.GEOFENCE_TRANSITION_ENTER
-                        | Geofence.GEOFENCE_TRANSITION_EXIT )
+                .setExpirationDuration( Geofence.NEVER_EXPIRE )
+                .setTransitionTypes( Geofence.GEOFENCE_TRANSITION_DWELL|Geofence.GEOFENCE_TRANSITION_EXIT )
+                .setLoiteringDelay(Integer.parseInt(String.valueOf(duration)))
                 .build();
     }
 
@@ -129,8 +131,7 @@ public class GeofenceClass{
             LocationServices.GeofencingApi.addGeofences(googleApiClient, request, createGeofencePendingIntent()
             ).setResultCallback(callback);
     }
-    // Draw Geofence circle on GoogleMap
-    private Circle geoFenceLimits;
+
     public void drawGeofence(float radious) {
         Log.d(TAG, "drawGeofence()");
 
@@ -145,9 +146,6 @@ public class GeofenceClass{
         geoFenceLimits = map.addCircle( circleOptions );
     }
 
-    private final String KEY_GEOFENCE_LAT = "GEOFENCE LATITUDE";
-    private final String KEY_GEOFENCE_LON = "GEOFENCE LONGITUDE";
-
     // Saving GeoFence marker with prefs mng
     public void saveGeofence(String name) {
         Log.d(TAG, "saveGeofence()");
@@ -160,7 +158,7 @@ public class GeofenceClass{
     }
 
     // Recovering last Geofence marker
-    public void recoverGeofenceMarker(String name,GoogleMap map, Marker marker, float radious) {
+    public void recoverGeofenceMarker(String name,float radious) {
         Log.d(TAG, "recoverGeofenceMarker");
         SharedPreferences sharedPref = context.getSharedPreferences(name, Context.MODE_PRIVATE );
 
